@@ -11,54 +11,114 @@ class GrafoRed:
     def __init__(self):
         """Inicializa el grafo no dirigido vacío y los parámetros de simulación."""
         self.grafo = nx.Graph()
-        self.tipos_dispositivo = ["PC", "Servidor", "IoT"]
+        self.tipos_dispositivo = ["PC", "Servidor", "IoT", "Impresora"]
 
-    def generar_topologia(self, num_nodos: int = 8) -> None:
+    def generar_topologia(self, topologia: str) -> None:
         """
-        Construye la red inyectando nodos con telemetría aleatoria y aristas.
+        Genera 40 nodos en la topología elegida y asigna telemetría aleatoria.
 
         Args:
-            num_nodos (int): Cantidad de dispositivos a simular en la red.
+            topologia (str): Tipo de topología: Estrella, Árbol o Malla.
+
+        Raises:
+            ValueError: Si se solicita un tipo de topología no soportado.
         """
-        self.grafo.clear()  # Limpiar cualquier topología previa
+        if topologia == "Estrella":
+            grafo_generado = nx.star_graph(39)
+        elif topologia == "Árbol":
+            semilla = random.randint(0, 2**32 - 1)
+            grafo_generado = nx.random_labeled_tree(40, seed=semilla)
+        elif topologia == "Malla":
+            grafo_generado = nx.grid_2d_graph(5, 8)
+        else:
+            raise ValueError("La topología debe ser Estrella, Árbol o Malla.")
 
-        # 1. Generación de Vértices (Nodos) y sus características
-        for i in range(1, num_nodos + 1):
-            nodo_id = f"N{i}"
-            tipo = random.choice(self.tipos_dispositivo)
-            trafico = random.randint(10, 100)
-            cpu = random.randint(10, 100)
+        etiquetas = {
+            nodo: f"N{indice}"
+            for indice, nodo in enumerate(grafo_generado.nodes, start=1)
+        }
+        grafo_generado = nx.relabel_nodes(grafo_generado, etiquetas)
 
-            # Etiquetado base: CPU > 90 o Tráfico > 90 se considera Anómalo
-            estado_inicial = "Anómalo" if cpu > 90 or trafico > 90 else "Normal"
+        self.grafo.clear()
+        self.grafo.add_nodes_from(grafo_generado.nodes)
+        self.grafo.add_edges_from(
+            (origen, destino, {"peso": random.randint(1, 10)})
+            for origen, destino in grafo_generado.edges
+        )
 
-            # Se inyecta el diccionario de datos al nodo (Preparación para GNN)
-            self.grafo.add_node(
-                nodo_id,
-                tipo=tipo,
+        for datos in self.grafo.nodes.values():
+            trafico = random.randint(0, 100)
+            cpu = random.randint(0, 100)
+            datos.update(
+                tipo=random.choice(self.tipos_dispositivo),
                 trafico=trafico,
                 cpu=cpu,
-                estado=estado_inicial
+                activo=True,
+                estado="Anómalo" if cpu > 90 or trafico > 90 else "Normal",
             )
 
-        # 2. Generación de Aristas (Enlaces) para asegurar conectividad
-        for i in range(2, num_nodos + 1):
-            # Conecta el nodo actual con uno anterior aleatorio para evitar grafos disconexos
-            nodo_destino = f"N{random.randint(1, i-1)}"
-            peso_enlace = random.randint(1, 10)
-            self.grafo.add_edge(f"N{i}", nodo_destino, peso=peso_enlace)
+        self.grafo.nodes["N1"]["tipo"] = "Servidor"
+        self.bloquear_nodos_aleatorios(cantidad=2, excluir={"N1"})
 
     def bloquear_nodo(self, nodo_id: str) -> bool:
         """
-        Simula la caída o bloqueo de un equipo en la red.
-        Aísla el nodo eliminando todas sus aristas conectadas y actualiza su estado.
+        Desactiva un equipo sin eliminarlo ni quitar sus enlaces del grafo.
         """
         if nodo_id in self.grafo:
-            aristas_a_eliminar = list(self.grafo.edges(nodo_id))
-            self.grafo.remove_edges_from(aristas_a_eliminar)
-            self.grafo.nodes[nodo_id]['estado'] = "Bloqueado"
+            self.grafo.nodes[nodo_id].update(activo=False, estado="Bloqueado")
             return True
         return False
+
+    def bloquear_nodos_aleatorios(
+        self,
+        cantidad: int = 2,
+        excluir: set[str] | None = None,
+    ) -> list[str]:
+        """Bloquea nodos elegidos al azar, omitiendo los identificadores excluidos."""
+        nodos = [
+            nodo_id
+            for nodo_id in self.grafo.nodes
+            if excluir is None or nodo_id not in excluir
+        ]
+        if cantidad < 0 or cantidad > len(nodos):
+            raise ValueError("La cantidad debe estar entre cero y el número de nodos.")
+
+        nodos_seleccionados = random.sample(nodos, cantidad)
+        for nodo_id in nodos_seleccionados:
+            self.bloquear_nodo(nodo_id)
+        return nodos_seleccionados
+
+    def obtener_ruta_activa(self, origen: str, destino: str) -> list[str] | None:
+        """
+        Busca la ruta más corta entre nodos activos, evitando nodos bloqueados.
+
+        Args:
+            origen: Identificador del nodo inicial.
+            destino: Identificador del nodo final.
+
+        Returns:
+            La secuencia de nodos de la ruta, o None si no hay ruta alternativa.
+
+        Raises:
+            ValueError: Si el origen o destino no existe o está inactivo.
+        """
+        for nodo_id, nombre in ((origen, "origen"), (destino, "destino")):
+            if nodo_id not in self.grafo:
+                raise ValueError(f"El nodo de {nombre} {nodo_id} no existe.")
+            if not self.grafo.nodes[nodo_id].get("activo", True):
+                raise ValueError(f"El nodo de {nombre} {nodo_id} está inactivo.")
+
+        nodos_activos = [
+            nodo_id
+            for nodo_id, datos in self.grafo.nodes(data=True)
+            if datos.get("activo", True)
+        ]
+        grafo_activo = self.grafo.subgraph(nodos_activos)
+
+        try:
+            return nx.shortest_path(grafo_activo, origen, destino)
+        except nx.NetworkXNoPath:
+            return None
 
     def obtener_datos_nodos(self) -> dict:
         """Retorna un diccionario con la información de todos los vértices."""

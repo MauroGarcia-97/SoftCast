@@ -10,7 +10,12 @@ class RenderizadorGrafo:
     """
 
     @staticmethod
-    def dibujar_red(grafo: nx.Graph, figura: Figure, canvas: FigureCanvasTkAgg) -> None:
+    def dibujar_red(
+        grafo: nx.Graph,
+        figura: Figure,
+        canvas: FigureCanvasTkAgg,
+        ruta: list[str] | None = None,
+    ) -> None:
         """
         Dibuja la topología de la red en la figura de Matplotlib embebida.
 
@@ -18,9 +23,13 @@ class RenderizadorGrafo:
             grafo (nx.Graph): El grafo matemático a renderizar.
             figura (Figure): El contenedor gráfico de Matplotlib.
             canvas (FigureCanvasTkAgg): El lienzo de Tkinter que muestra la figura.
+            ruta (list[str] | None): Camino que se resalta en azul, si se proporciona.
         """
-        figura.clf()  # Limpiar renderizados anteriores
-        ax = figura.add_subplot(111)
+        if figura.axes:
+            ax = figura.axes[0]
+            ax.clear()
+        else:
+            ax = figura.add_subplot(111)
         ax.set_title("Topología de Red SoftCast (En Vivo)", fontsize=14, fontweight='bold')
 
         if len(grafo.nodes) == 0:
@@ -39,14 +48,28 @@ class RenderizadorGrafo:
 
             # Código de colores según el estado dictado por el Modelo (IA/Simulación)
             if estado == 'Anómalo':
-                colores_nodos.append('#FF4C4C') # Rojo para anomalías
+                colores_nodos.append('#FFA500') # Naranja para anomalías
             elif estado == 'Bloqueado':
-                colores_nodos.append('#808080') # Gris para equipos caídos
+                colores_nodos.append('#FF0000') # Rojo para equipos bloqueados
             else:
-                colores_nodos.append('#4CAF50') # Verde para operación normal
+                colores_nodos.append('#008000') # Verde para operación normal
 
             # Etiqueta visible en pantalla (ID + CPU)
             etiquetas_nodos[nodo] = f"{nodo}\n{datos.get('tipo', '')}\nCPU:{datos.get('cpu', 0)}%"
+
+        aristas_ruta = {
+            frozenset((origen, destino))
+            for origen, destino in zip(ruta or (), (ruta or ())[1:])
+        }
+        aristas = list(grafo.edges)
+        colores_aristas = [
+            '#0066FF' if frozenset(arista) in aristas_ruta else '#A0A0A0'
+            for arista in aristas
+        ]
+        anchos_aristas = [
+            3.0 if frozenset(arista) in aristas_ruta else 1.5
+            for arista in aristas
+        ]
 
         # 3. Renderizado Geométrico
         nx.draw(
@@ -60,8 +83,8 @@ class RenderizadorGrafo:
             font_size=8,
             font_weight='bold',
             font_color='white',
-            edge_color='#A0A0A0',
-            width=1.5
+            edge_color=colores_aristas,
+            width=anchos_aristas,
         )
 
         # 4. Actualizar el lienzo en pantalla
