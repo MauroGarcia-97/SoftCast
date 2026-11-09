@@ -60,17 +60,6 @@ class GrafoRed:
             return True
         return False
 
-    def bloquear_nodos_aleatorios(self, cantidad: int = 2) -> list[str]:
-        """Bloquea una cantidad de nodos distintos seleccionados aleatoriamente."""
-        nodos = list(self.grafo.nodes)
-        if cantidad < 0 or cantidad > len(nodos):
-            raise ValueError("La cantidad debe estar entre cero y el número de nodos.")
-
-        nodos_seleccionados = random.sample(nodos, cantidad)
-        for nodo_id in nodos_seleccionados:
-            self.bloquear_nodo(nodo_id)
-        return nodos_seleccionados
-
     def obtener_datos_nodos(self) -> dict:
         """Retorna un diccionario con la información de todos los vértices."""
         return dict(self.grafo.nodes(data=True))

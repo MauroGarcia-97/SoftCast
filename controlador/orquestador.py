@@ -33,30 +33,18 @@ class ControladorPrincipal:
 
     def iniciar(self) -> None:
         """Punto de arranque del ciclo de vida de la aplicación."""
-        self.vista.registrar_log("Sistema inicializado. Generando topología de red.", "ALERTA")
-        self._generar_red(bloquear_nodos_iniciales=True)
+        self.vista.registrar_log("Sistema inicializado. Esperando generación de topología.", "ALERTA")
         self.vista.iniciar_loop()
 
     # ================= MÉTODOS DE LÓGICA DE NEGOCIO (CALLBACKS) =================
 
     def manejar_generacion_red(self) -> None:
         """Coordina la creación de una nueva red y su renderizado visual."""
-        self._generar_red()
-
-    def _generar_red(self, bloquear_nodos_iniciales: bool = False) -> None:
-        """Genera la topología y, al iniciar, bloquea dos nodos aleatorios."""
         self.vista.registrar_log("Generando topología de red con atributos aleatorios (CPU/Tráfico)...", "INFO")
 
         # 1. El modelo matemático crea los datos
         self.modelo_grafo.generar_topologia(num_nodos=8)
         self.red_iniciada = True
-
-        if bloquear_nodos_iniciales:
-            nodos_bloqueados = self.modelo_grafo.bloquear_nodos_aleatorios(cantidad=2)
-            self.vista.registrar_log(
-                f"Bloqueo inicial aleatorio: nodos {', '.join(nodos_bloqueados)} aislados.",
-                "ERROR"
-            )
 
         # 2. La vista recibe la orden de dibujar esos datos
         self.vista.actualizar_grafo(self.modelo_grafo.grafo)
