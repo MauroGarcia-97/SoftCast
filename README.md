@@ -17,3 +17,12 @@ Para ejecutar el simulador:
 ```powershell
 python main.py
 ```
+
+## Pruebas
+
+Instala las dependencias de desarrollo y ejecuta la suite con:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest
+```
